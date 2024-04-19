@@ -48,9 +48,11 @@ also be done by using --accept-division for each handgun division.
 
 ```
 $ psc-tool --score-file=scorefile.psc --reject-division='/^PCC/' --reject-division='/^Mini /' --reject-division='/Rifle/' --cleanup --match-name='Pistol Mega Match #42' --output=hg-scorefile.psc
+```
 
 or
 
+```
 $ psc-tool -f scorefile.psc -A Classic -A Open -A Production -A 'Production Optics' -A Revolver -A Standard -c -n 'Pistol Mega Match #42' -o hg-scorefile.psc
 
 ```
