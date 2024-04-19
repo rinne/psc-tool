@@ -1,0 +1,251 @@
+#! /usr/bin/env node
+'use strict';
+
+const Optist = require('optist');
+const ou = require('optist/util');
+const AZ = require("adm-zip");
+
+function stringOrRegexpCb(s) {
+	if (typeof(s) !== 'string') {
+		return undefined;
+	}
+	let m = s.match(/^\/(.*)\/$/);
+	if (m) {
+		try {
+			s = new RegExp(m[1]);
+		} catch (e) {
+			s = undefined;
+		}
+	}
+	return s;
+}
+
+function parseOpts() {
+	var opt = ((new Optist())
+				.opts([ { longName: 'score-file',
+						  shortName: 'f',
+						  description: 'Source score file',
+						  required: true,
+						  hasArg: true,
+						  optArgCb: ou.existingFileNameCb },
+						{ longName: 'list',
+						  shortName: 'l',
+ 						  description: 'List score file contents',
+						  conflictsWith: [ 'output' ]
+						},
+						{ longName: 'output',
+						  shortName: 'o',
+						  description: 'Destination score file',
+						  hasArg: true,
+						  conflictsWith: [ 'list' ] },
+						{ longName: 'match-name',
+						  shortName: 'n',
+						  description: 'Rename match',
+						  hasArg: true,
+						  optArgCb: ou.nonEmptyCb },
+						{ longName: 'cleanup',
+						  shortName: 'c',
+						  description: 'Remove entries not related to scores from the match file' },
+						{ longName: 'reject-division',
+						  shortName: 'R',
+						  hasArg: true,
+						  multi: true,
+						  optArgCb: stringOrRegexpCb },
+						{ longName: 'accept-division',
+						  shortName: 'A',
+						  hasArg: true,
+						  multi: true,
+						  optArgCb: stringOrRegexpCb } ] )
+				.help('pcs-tool')
+				.parse(undefined, 0, 0));
+	if ((opt.value('reject-division').length > 0) && (opt.value('accept-division').length > 0)) {
+		throw new Error('Options --reject-division (R) and --accept-division (A) are mutually exclusive');
+	}
+	return opt;
+}
+
+(async function() {
+	var rv;
+	try {
+		let opt = parseOpts();
+		rv = await main(opt);
+	} catch (e) {
+		console.error(e);
+		rv = -1;
+	}
+	process.exit(rv);
+})();
+
+
+async function main(opt) {
+	var sf = new AZ(opt.value('f'));
+	var sfe = sf.getEntries();
+	var md, ms;
+	for (let fe of sfe) {
+		if ((fe.entryName == 'match_def.json') && (! fe.isDirectory)) {
+			md = JSON.parse(fe.getData().toString('utf8'));
+		} else if ((fe.entryName == 'match_scores.json') && (! fe.isDirectory)) {
+			ms = JSON.parse(fe.getData().toString('utf8'));
+		} else {
+		}
+	}
+	if (! md) {
+		throw new Error('Match definition is missing from the archive');
+	}
+	if (! ms) {
+		throw new Error('Match scores are missing from the archive');
+	}
+	if (typeof(md?.match_name) !== 'string') {
+		throw new Error('Invalid match data: Name missing');
+	}
+	if (! Array.isArray(md?.match_shooters)) {
+		throw new Error('Invalid match data: Shooters missing');
+	}
+	if (! Array.isArray(md?.match_cats)) {
+		throw new Error('Invalid match data: Divisions (match_cats) missing');
+	}
+	if (! Array.isArray(md?.match_shooters)) {
+		throw new Error('Invalid match data: Shooters missing');
+	}
+	if (! Array.isArray(ms?.match_scores)) {
+		throw new Error('Invalid match scores: Score array missing');
+	}
+	for (let sc of ms.match_scores) {
+		if (! Array.isArray(sc?.stage_stagescores)) {
+			throw new Error('Invalid match scores: Score array missing from stage');
+		}
+	}
+
+	// Rewrite match name if needed
+	if (opt.value('match-name')) {
+		md.match_name = opt.value('match-name');
+	}
+
+	// Filter divisions
+	if (opt.value('reject-division').length > 0) {
+		let match_cats = [];
+		for (let c of md.match_cats) {
+			let exclude = false;
+			for (let x of opt.value('reject-division')) {
+				if (x instanceof RegExp) {
+					if (c.match(x)) {
+						exclude = true;
+						break;
+					}
+				} else {
+					if (c === x) {
+						exclude = true;
+						break;
+					}
+				}
+			}
+			if (! exclude) {
+				match_cats.push(c);
+			}
+		}
+		md.match_cats = match_cats;
+	} else if (opt.value('accept-division').length > 0) {
+		let match_cats = [];
+		for (let c of md.match_cats) {
+			let exclude = true;
+			for (let x of opt.value('accept-division')) {
+				if (x instanceof RegExp) {
+					if (c.match(x)) {
+						exclude = false;
+						break;
+					}
+				} else {
+					if (c === x) {
+						exclude = false;
+						break;
+					}
+				}
+			}
+			if (! exclude) {
+				match_cats.push(c);
+			}
+		}
+		md.match_cats = match_cats;
+	}
+
+	// Filter shooters
+	var shooters = [];
+	var shooter_ids = new Set();
+	for (let sd of md.match_shooters) {
+		if ((typeof(sd?.sh_dvp) === 'string') && (md.match_cats.includes(sd.sh_dvp))) {
+			shooters.push(sd);
+			shooter_ids.add(sd.sh_uid);
+		}
+	}
+	md.match_shooters = shooters;
+	if (shooter_ids.size < 1) {
+		console.warn('Warning: All shooters excluded');
+	}
+
+	// Filter scores
+	for (let sc of ms.match_scores) {
+		let stage_scores = [];
+		for (let ssc of sc.stage_stagescores) {
+			if ((typeof(ssc?.shtr) === 'string') && shooter_ids.has(ssc.shtr)) {
+				stage_scores.push(ssc);
+			}
+		}
+		sc.stage_stagescores = stage_scores;
+	}
+
+	function divShooters(md, div) {
+		var r = [];
+		for (let sd of md.match_shooters) {
+			if (sd?.sh_dvp === div) {
+				let n;
+				if (sd.sh_ln && sd.sh_fn) {
+					n = sd.sh_ln + ', ' + sd.sh_fn;
+				} else if (sd.sh_ln) {
+					n = sd.sh_ln;
+				} else if (sd.sh_fn) {
+					n = sd.sh_fn;
+				} else {
+					n = '? (' + sd.sh_uid + ')';
+				}
+				r.push(n)
+			}
+		}
+		return r.sort();
+	}
+
+	if (opt.value('list')) {
+		console.log(md.match_name);
+		console.log('-'.repeat(md.match_name.length));
+		for (let div of md.match_cats.sort()) {
+			let sn = divShooters(md, div);
+			console.log(div);
+			if (sn.length > 0) {
+				for (let n of sn) {
+					console.log('  -', n);
+				}
+			} else {
+				console.log('  (no shooters)');
+			}
+		}
+		process.exit();
+	}
+
+
+	// Create destination file
+	var df = new AZ();
+	df.addFile('match_def.json', Buffer.from(JSON.stringify(md), "utf8"));
+	df.addFile('match_scores.json', Buffer.from(JSON.stringify(ms), "utf8"));
+	if (! opt.value('cleanup')) {
+		for (let fe of sfe) {
+			if (! (fe.isDirectory || ([ 'match_def.json', 'match_scores.json' ].includes(fe.entryName)))) {
+				df.addFile(fe.entryName, fe.getData());
+			}
+		}
+	}
+
+	// Write to output
+	if (opt.value('output')) {
+		df.writeZip(opt.value('output'));
+	}
+}
+

@@ -1,0 +1,31 @@
+{
+	"name": "psc-tool",
+	"version": "1.0.0",
+	"description": "Command line tool for PractiScore file processing",
+	"main": "webdh.js",
+	"engines": {
+		"node": ">=16.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rinne/psc-tool.git"
+	},
+	"keywords": [
+		"ipsc",
+		"practiscore"
+	],
+	"author": {
+		"name": "Timo J. Rinne",
+		"email": "tri@iki.fi",
+		"url": "https://github.com/rinne/"
+	},
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/rinne/psc-tool/issues"
+	},
+	"homepage": "https://github.com/rinne/psc-tool#readme",
+	"dependencies": {
+		"adm-zip": "^0.5.12",
+		"optist": "^2.0.1"
+	}
+}
