@@ -1,18 +1,28 @@
+PSC-TOOL
+========
+
+PSC-TOOL is a command line tool for PractiScore file processing. The
+main use for this tool is to split PractiScore result files that
+contain results from multiple disciplines, such as PCC and Handgun
+divisions in the same, so to several files each including only
+divisions from a single discipline.
+
 Usage
 =====
 
 ```
 Usage:
   pcs-tool [<opt> ...]
-  Options:
-    -f <arg>  --score-file=<arg>       Source score file
-    -l        --list                   List score file contents
-    -o <arg>  --output=<arg>           Destination score file
-    -n <arg>  --match-name=<arg>       Rename match
-    -c        --cleanup                Remove entries not related to scores from the match file
-    -R <arg>  --reject-division=<arg>
-    -A <arg>  --accept-division=<arg>
-    -h        --help                   Show help and exit
+
+Options:
+  -f <arg>  --score-file=<arg>       Source score file
+  -l        --list                   List score file contents
+  -o <arg>  --output=<arg>           Destination score file
+  -n <arg>  --match-name=<arg>       Rename match
+  -c        --cleanup                Remove entries not related to scores from the match file
+  -R <arg>  --reject-division=<arg>
+  -A <arg>  --accept-division=<arg>
+  -h        --help                   Show help and exit
 ```
 
 Examples
