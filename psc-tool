@@ -9,7 +9,7 @@ function stringOrRegexpCb(s) {
 	if (typeof(s) !== 'string') {
 		return undefined;
 	}
-	let m = s.match(/^\/(.*)\/$/);
+	let m = s.match(/^\/(.*)\/[a-zA-Z]*$/);
 	if (m) {
 		try {
 			s = new RegExp(m[1]);
